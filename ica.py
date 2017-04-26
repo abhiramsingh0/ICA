@@ -1,53 +1,62 @@
-# implementaion based on ex code given in sklearn.
-
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy import signal
+from numpy import linalg as LA
+import math
+class ICA:
+  # creating data members accessible to all objects
+  # ...
 
-from sklearn.decomposition import FastICA, PCA
+  # creating object private data members
+  def __init__(self, data_matrix):
+    self.data = data_matrix
+    # find mean of each component
+    self.mean = self.find_mean()
+    # find standard deviation of each component
+    self.std = self.find_std()
+    # now each component has 0 mean 1 variance
+    self.norm_data = self.normalize()
+    # define unmixing matrix
+    n = self.data.shape[1]
+    self.unmix_mat = np.random.uniform(0,1,(n,n))
+    
+  # find mean of data points along each column
+  def find_mean(self):
+    return np.mean(self.data)
 
-np.random.seed(0)
-n_samples = 2000
-time = np.linspace(0, 8, n_samples)
+  # find mean of data points along each column
+  def find_std(self):
+    return np.std(self.data)
 
-s1 = np.sin(2 * time)  # Signal 1 : sinusoidal signal
-s2 = np.sign(np.sin(3 * time))  # Signal 2 : square signal
-s3 = signal.sawtooth(2 * np.pi * time)  # Signal 3: saw tooth signal
+  # normalize data points along each component
+  def normalize(self):
+    return ((self.data - self.mean) / self.std)
 
-S = np.c_[s1, s2, s3]
-S += 0.2 * np.random.normal(size=S.shape)  # Add noise
+  # find source components from observation components
+  def find_sources(self):
+    self.sto_grad_ascent()
+    inde_comp = np.dot(self.unmix_mat, self.data.T)
+    return (inde_comp.T)
 
-S /= S.std(axis=0)  # Standardize data
-# Mix data
-A = np.array([[1, 1, 1], [0.5, 2, 1.0], [1.5, 1.0, 2.0]])  # Mixing matrix
-X = np.dot(S, A.T)  # Generate observations
+  # apply gradient ascent to update unmixing matrix
+  # maximum likelihood version ICA is implemented
+  def sto_grad_ascent(self):
+    step_len = 1
+    num_iteration = 11 
+    for index in range(1, num_iteration):
+      for index1 in range(0, self.data.shape[0]):
+        # create vector for [1-2g(w1.x),...,1-2g(wn.x)]
+        vec = self.create_vec(self.data[index1, :])
+        inv_mat = LA.inv(self.unmix_mat.T)
+        outer_prod = np.outer(vec, self.data[index1, :])
+        # update unmixing matrix
+        self.unmix_mat += (step_len * (outer_prod + inv_mat))
 
-# Compute ICA
-ica = FastICA(n_components=3)
-S_ = ica.fit_transform(X)  # Reconstruct signals
-A_ = ica.mixing_  # Get estimated mixing matrix
+  def create_vec(self, data_point):
+    dim = self.unmix_mat.shape[0]
+    vec = []
+    for index in range(0, dim):
+      temp = np.dot(self.unmix_mat[index, :], data_point)
+      vec = np.append(vec, 1 - 2 * self.sigmoid(temp))
+    return vec
 
-# We can `prove` that the ICA model applies by reverting the unmixing.
-#assert np.allclose(X, np.dot(S_, A_.T) + ica.mean_)
-
-# For comparison, compute PCA
-pca = PCA(n_components=2)
-H = pca.fit_transform(X)  # Reconstruct signals based on orthogonal components
-
-plt.figure()
-
-models = [X, S, S_, H]
-names = ['Observations (mixed signal)',
-         'True Sources',
-         'ICA recovered signals',
-         'PCA recovered signals']
-colors = ['red', 'steelblue', 'orange']
-
-for ii, (model, name) in enumerate(zip(models, names), 1):
-    plt.subplot(4, 1, ii)
-    plt.title(name)
-    for sig, color in zip(model.T, colors):
-        plt.plot(sig, color=color)
-
-plt.subplots_adjust(0.09, 0.04, 0.94, 0.94, 0.26, 0.46)
-plt.show()
+  def sigmoid(self, x):
+    return (1 / (1 + math.exp(-x)))
