@@ -39,8 +39,8 @@ class ICA:
   # apply gradient ascent to update unmixing matrix
   # maximum likelihood version ICA is implemented
   def sto_grad_ascent(self):
-    step_len = 1
-    num_iteration = 11 
+    step_len = 0.1
+    num_iteration = 10000
     for index in range(1, num_iteration):
       for index1 in range(0, self.data.shape[0]):
         # create vector for [1-2g(w1.x),...,1-2g(wn.x)]
@@ -49,6 +49,7 @@ class ICA:
         outer_prod = np.outer(vec, self.data[index1, :])
         # update unmixing matrix
         self.unmix_mat += (step_len * (outer_prod + inv_mat))
+        self.unmix_mat = self.row_norm(self.unmix_mat)
 
   def create_vec(self, data_point):
     dim = self.unmix_mat.shape[0]
@@ -60,3 +61,11 @@ class ICA:
 
   def sigmoid(self, x):
     return (1 / (1 + math.exp(-x)))
+
+  def row_norm(self, unmix_mat):
+    for index in range(0, unmix_mat.shape[0]):
+      row_vec = unmix_mat[index, :]
+      magnitude = LA.norm(row_vec)
+      row_vec /= magnitude
+      unmix_mat[index,:] = row_vec
+    return unmix_mat
